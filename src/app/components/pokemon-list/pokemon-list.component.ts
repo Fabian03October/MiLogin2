@@ -1,12 +1,13 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { PokemonService, Pokemon, PokemonType } from '../../services/pokemon.service';
 import { forkJoin } from 'rxjs';
 
 @Component({
   selector: 'app-pokemon-list',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="pokemon-container">
       <div class="pokemon-header">
@@ -18,6 +19,43 @@ import { forkJoin } from 'rxjs';
       <div *ngIf="isLoading" class="loading">
         <div class="spinner"></div>
         <p>Cargando Pokémon...</p>
+      </div>
+
+      <!-- Search and Filter Bar -->
+      <div *ngIf="!isLoading" class="search-filter-container">
+        <div class="search-section">
+          <div class="search-input-container">
+            <input 
+              type="text" 
+              [(ngModel)]="searchTerm"
+              (input)="applyFilters()"
+              placeholder="Buscar por nombre o número..."
+              class="search-input">
+            <span class="search-icon">🔍</span>
+          </div>
+          
+          <div class="filter-controls">
+            <select [(ngModel)]="sortBy" (change)="applyFilters()" class="sort-select">
+              <option value="id">Ordenar por ID</option>
+              <option value="name">Ordenar por Nombre</option>
+              <option value="height">Ordenar por Altura</option>
+              <option value="weight">Ordenar por Peso</option>
+            </select>
+            
+            <select [(ngModel)]="sortOrder" (change)="applyFilters()" class="order-select">
+              <option value="asc">↑ Ascendente</option>
+              <option value="desc">↓ Descendente</option>
+            </select>
+            
+            <button (click)="clearAllFilters()" class="clear-filters-btn">
+              🗑️ Limpiar
+            </button>
+          </div>
+        </div>
+        
+        <div class="results-info">
+          <p>Mostrando <strong>{{ filteredPokemon.length }}</strong> de <strong>{{ pokemonList.length }}</strong> Pokémon</p>
+        </div>
       </div>
 
       <!-- Type Filter -->
@@ -213,6 +251,104 @@ import { forkJoin } from 'rxjs';
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
+    }
+
+    .search-filter-container {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 15px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    }
+
+    .search-section {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .search-input-container {
+      position: relative;
+      flex: 1;
+    }
+
+    .search-input {
+      width: 100%;
+      padding: 12px 45px 12px 15px;
+      border: none;
+      border-radius: 25px;
+      font-size: 1rem;
+      background: rgba(255,255,255,0.95);
+      color: #333;
+      transition: all 0.3s ease;
+      box-sizing: border-box;
+    }
+
+    .search-input:focus {
+      outline: none;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.3);
+    }
+
+    .search-icon {
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.2rem;
+      color: #666;
+    }
+
+    .filter-controls {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .sort-select, .order-select {
+      padding: 10px 15px;
+      border: none;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      background: rgba(255,255,255,0.95);
+      color: #333;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .sort-select:focus, .order-select:focus {
+      outline: none;
+      background: white;
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.3);
+    }
+
+    .clear-filters-btn {
+      background: rgba(255,255,255,0.2);
+      color: white;
+      border: 2px solid rgba(255,255,255,0.3);
+      padding: 8px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.3s ease;
+      font-size: 0.9rem;
+    }
+
+    .clear-filters-btn:hover {
+      background: rgba(255,255,255,0.3);
+      transform: translateY(-2px);
+    }
+
+    .results-info {
+      text-align: center;
+      color: white;
+      margin-top: 1rem;
+      font-weight: 500;
+    }
+
+    .results-info strong {
+      font-weight: 700;
     }
 
     .type-filter {
@@ -530,6 +666,19 @@ import { forkJoin } from 'rxjs';
     }
 
     @media (max-width: 768px) {
+      .search-filter-container {
+        padding: 1rem;
+      }
+
+      .filter-controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .sort-select, .order-select, .clear-filters-btn {
+        width: 100%;
+      }
+
       .pokemon-table-container {
         overflow-x: auto;
       }
@@ -591,6 +740,11 @@ export class PokemonListComponent implements OnInit {
   selectedPokemonDetail: Pokemon | null = null;
   isLoading: boolean = true;
 
+  // Nuevas propiedades para búsqueda y filtrado
+  searchTerm: string = '';
+  sortBy: string = 'id';
+  sortOrder: 'asc' | 'desc' = 'asc';
+
   constructor(public pokemonService: PokemonService) {}
 
   ngOnInit(): void {
@@ -613,7 +767,7 @@ export class PokemonListComponent implements OnInit {
 
       // Esperar a que se carguen todos los Pokémon
       this.pokemonList = await Promise.all(pokemonPromises);
-      this.filteredPokemon = this.pokemonList;
+      this.applyFilters(); // Usar el nuevo método de filtrado
       
       this.isLoading = false;
     } catch (error) {
@@ -624,14 +778,67 @@ export class PokemonListComponent implements OnInit {
 
   selectType(type: string): void {
     this.selectedType = type;
-    
-    if (type === 'all') {
-      this.filteredPokemon = this.pokemonList;
-    } else {
-      this.filteredPokemon = this.pokemonList.filter(pokemon =>
-        pokemon.types.some(t => t.type.name === type)
+    this.applyFilters();
+  }
+
+  applyFilters(): void {
+    let filtered = [...this.pokemonList];
+
+    // Filtrar por tipo
+    if (this.selectedType !== 'all') {
+      filtered = filtered.filter(pokemon =>
+        pokemon.types.some(t => t.type.name === this.selectedType)
       );
     }
+
+    // Filtrar por búsqueda
+    if (this.searchTerm.trim()) {
+      const searchLower = this.searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(pokemon =>
+        pokemon.name.toLowerCase().includes(searchLower) ||
+        pokemon.id.toString().includes(searchLower)
+      );
+    }
+
+    // Ordenar
+    filtered.sort((a, b) => {
+      let valueA: any, valueB: any;
+      
+      switch (this.sortBy) {
+        case 'name':
+          valueA = a.name.toLowerCase();
+          valueB = b.name.toLowerCase();
+          break;
+        case 'height':
+          valueA = a.height;
+          valueB = b.height;
+          break;
+        case 'weight':
+          valueA = a.weight;
+          valueB = b.weight;
+          break;
+        default: // 'id'
+          valueA = a.id;
+          valueB = b.id;
+          break;
+      }
+
+      if (this.sortOrder === 'asc') {
+        return valueA > valueB ? 1 : valueA < valueB ? -1 : 0;
+      } else {
+        return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
+      }
+    });
+
+    this.filteredPokemon = filtered;
+  }
+
+  clearAllFilters(): void {
+    this.searchTerm = '';
+    this.selectedType = 'all';
+    this.sortBy = 'id';
+    this.sortOrder = 'asc';
+    this.applyFilters();
   }
 
   selectPokemon(pokemon: Pokemon): void {
